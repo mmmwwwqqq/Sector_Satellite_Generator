@@ -114,18 +114,7 @@ function update_plot(z_p, a_p, d_p, e, θ, satellite_center_angle, β, z_s, N, n
     ylims!(p, (ylim_range[1], ylim_range[2]))
 
     Plots.savefig(p, "Plot_Gear1.svg")
-    return lambda_val  # Возвращаем значение lambda для вывода в интерфейсе
-end
-
-function save_points()
-    try
-        output_file_path = joinpath(@__DIR__, "output_$(i).txt")
-        println("Saving file to $output_file_path")
-        writedlm(output_file_path, new_satellite_points, '\t')
-        println("File saved successfully to $output_file_path")
-    catch e
-        println("Failed to save file: $e")
-    end
+    return lambda_val, out_satellite_points, z_s  # Возвращаем значение lambda для вывода в интерфейсе
 end
 
 # Функция для создания окна интерфейса
@@ -204,8 +193,13 @@ function create_window()
     push!(vbox, label_s)
     push!(vbox, entry_s)
 
-    button_update = Gtk.Button("Update Plot")
-    push!(vbox, button_update)
+    #Кнопки для вывода рисунка/файлов
+    hbox_plot = Gtk.Box(:h, 5)
+    button_update = Gtk.Button("Create Satellites")
+    button_save = Gtk.Button("Save points")
+    push!(hbox_plot, button_update)
+    push!(hbox_plot, button_save)
+    push!(vbox, hbox_plot)
 
     # Добавляем кнопки для перемещения графики
     hbox_move = Gtk.Box(:h, 5)
@@ -244,9 +238,7 @@ function create_window()
         s = parse(Int, Gtk.get_gtk_property(entry_s, :text, String))
         
         lambda_val = update_plot(z_p, a_p, d_p, e, θ, satellite_center_angle, β, z_s, N, number_satellite_points, s, xlim_range, ylim_range)
-        
         set_gtk_property!(label_lambda, :label, "Gearing Lambda: $(lambda_val)")  # Обновляем значение метки
-        
         set_gtk_property!(image, :file, "Plot_Gear1.svg")
     end
     
@@ -266,8 +258,18 @@ function create_window()
             xlim_range[2] -= step
         end
         
-        # Перестраиваем график с новыми границами
         on_button_clicked(widget)
+    end
+
+    function save_to_file(widget, out_satellite_points)
+        try
+            output_file_path = joinpath(@__DIR__, "output_$(i).txt")
+            println("Saving file to $output_file_path")
+            writedlm(output_file_path, new_satellite_points, '\t')
+            println("File saved successfully to $output_file_path")
+        catch e
+            println("Failed to save file: $e")
+        end
     end
 
     function on_window_closed(widget)
@@ -277,6 +279,7 @@ function create_window()
     end
 
     signal_connect(on_button_clicked, button_update, :clicked)
+    signal_connect(button_save, :clicked) do widget save_to_file(widget, out_satellite_points) end
     signal_connect(button_left, :clicked) do widget on_button_move(widget, "left") end
     signal_connect(button_up, :clicked) do widget on_button_move(widget, "up") end
     signal_connect(button_down, :clicked) do widget on_button_move(widget, "down") end
