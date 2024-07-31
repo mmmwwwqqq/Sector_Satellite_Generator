@@ -11,7 +11,6 @@ function deg2rad(deg)
     return deg * π / 180.0
 end
 
-# Функция для обновления графика и вывода значения λ
 function update_plot(z_p, a_p, d_p, e, θ, satellite_center_angle, β, z_s, N, number_satellite_points, s, xlim_range, ylim_range)
     cycloid_points = zeros(N, 2)
     satellite_points = zeros(number_satellite_points, 2)
@@ -37,6 +36,7 @@ function update_plot(z_p, a_p, d_p, e, θ, satellite_center_angle, β, z_s, N, n
     all_contact_points = zeros(z_s, z_p, 2)
     all_normals = zeros(z_s, z_p, 2)
     all_masks = zeros(Bool, z_s, z_p)
+    out_satellite_points = zeros(number_satellite_points, 2*z_s)
 
     for (i, tau) in enumerate(range(0, 2π - angle_between_excenters, length=z_s))
         t_new_satellite = range(satellite_center_angle - θ / 2 + tau / z_p, satellite_center_angle + θ / 2 + tau / z_p, length=number_satellite_points)
@@ -86,7 +86,6 @@ function update_plot(z_p, a_p, d_p, e, θ, satellite_center_angle, β, z_s, N, n
         plot!(p, contact_points[:, 1], contact_points[:, 2], label="Contact Points", xlabel="X", ylabel="Y", title="Contact Points Scatter Plot", seriestype=:scatter)
 
         new_satellite_points = zeros(number_satellite_points, 2)
-        out_satellite_points = zeros(number_satellite_points, 2*z_s)
         for j in 1:number_satellite_points
             new_satellite_points[j, :] .= satellite_point(t_new_satellite[j], gear)
             P = [new_satellite_points[j, 1]; new_satellite_points[j, 2]; 1]
@@ -95,16 +94,6 @@ function update_plot(z_p, a_p, d_p, e, θ, satellite_center_angle, β, z_s, N, n
         end
 
         plot!(p, new_satellite_points[:, 1], new_satellite_points[:, 2], label="Satellite Points", xlabel="X", ylabel="Y", title="Satellite Points Scatter Plot")
-        
-        # Debugging statements to check file writing
-        try
-            output_file_path = joinpath(@__DIR__, "output_$(i).txt")
-            println("Saving file to $output_file_path")
-            writedlm(output_file_path, new_satellite_points, '\t')
-            println("File saved successfully to $output_file_path")
-        catch e
-            println("Failed to save file: $e")
-        end
     end
 
     plot!()
@@ -116,8 +105,6 @@ function update_plot(z_p, a_p, d_p, e, θ, satellite_center_angle, β, z_s, N, n
     Plots.savefig(p, "Plot_Gear1.svg")
     return lambda_val, out_satellite_points, z_s  # Возвращаем значение lambda для вывода в интерфейсе
 end
-
-# Функция для создания окна интерфейса
 function create_window()
     win = GtkWindow("Генератор сателлитов", 800, 600)
     
@@ -127,6 +114,7 @@ function create_window()
     vbox = Gtk.Box(:v, 5)
     push!(hbox, vbox)
     
+    # Define and add UI elements
     label_zp = Gtk.Label("z_p:")
     entry_zp = Gtk.Entry()
     set_gtk_property!(entry_zp, :text, "80")
@@ -193,21 +181,22 @@ function create_window()
     push!(vbox, label_s)
     push!(vbox, entry_s)
 
-    #Кнопки для вывода рисунка/файлов
-    hbox_plot = Gtk.Box(:h, 5)
+    # Define buttons
     button_update = Gtk.Button("Create Satellites")
     button_save = Gtk.Button("Save points")
+    
+    hbox_plot = Gtk.Box(:h, 5)
     push!(hbox_plot, button_update)
     push!(hbox_plot, button_save)
     push!(vbox, hbox_plot)
 
-    # Добавляем кнопки для перемещения графики
-    hbox_move = Gtk.Box(:h, 5)
+    # Define move buttons
     button_left = Gtk.Button("←")
     button_up = Gtk.Button("↑")
     button_down = Gtk.Button("↓")
     button_right = Gtk.Button("→")
     
+    hbox_move = Gtk.Box(:h, 5)
     push!(hbox_move, button_left)
     push!(hbox_move, button_up)
     push!(hbox_move, button_down)
@@ -217,13 +206,15 @@ function create_window()
     image = Gtk.Image("Plot_Gear1.svg")
     push!(hbox, image)
 
-    # Добавляем метку для вывода значения lambda
+    # Define lambda label
     label_lambda = Gtk.Label("Gearing Lambda:")
     push!(vbox, label_lambda)
     
     xlim_range = [-500, 500]
     ylim_range = [-500, 500]
     
+    out_satellite_points = nothing  # Initialize out_satellite_points
+
     function on_button_clicked(widget)
         z_p = parse(Int, Gtk.get_gtk_property(entry_zp, :text, String))
         a_p = parse(Float64, Gtk.get_gtk_property(entry_ap, :text, String))
@@ -237,7 +228,7 @@ function create_window()
         number_satellite_points = parse(Int, Gtk.get_gtk_property(entry_number_satellite_points, :text, String))
         s = parse(Int, Gtk.get_gtk_property(entry_s, :text, String))
         
-        lambda_val = update_plot(z_p, a_p, d_p, e, θ, satellite_center_angle, β, z_s, N, number_satellite_points, s, xlim_range, ylim_range)
+        lambda_val, out_satellite_points, z_s = update_plot(z_p, a_p, d_p, e, θ, satellite_center_angle, β, z_s, N, number_satellite_points, s, xlim_range, ylim_range)
         set_gtk_property!(label_lambda, :label, "Gearing Lambda: $(lambda_val)")  # Обновляем значение метки
         set_gtk_property!(image, :file, "Plot_Gear1.svg")
     end
@@ -261,14 +252,18 @@ function create_window()
         on_button_clicked(widget)
     end
 
-    function save_to_file(widget, out_satellite_points)
-        try
-            output_file_path = joinpath(@__DIR__, "output_$(i).txt")
-            println("Saving file to $output_file_path")
-            writedlm(output_file_path, new_satellite_points, '\t')
-            println("File saved successfully to $output_file_path")
-        catch e
-            println("Failed to save file: $e")
+    function save_to_file(widget)
+        if out_satellite_points !== nothing
+            try
+                output_file_path = joinpath(@__DIR__, "output_satellite_points.txt")
+                println("Saving file to $output_file_path")
+                writedlm(output_file_path, out_satellite_points, '\t')
+                println("File saved successfully to $output_file_path")
+            catch e
+                println("Failed to save file: $e")
+            end
+        else
+            println("No satellite points to save.")
         end
     end
 
@@ -279,7 +274,7 @@ function create_window()
     end
 
     signal_connect(on_button_clicked, button_update, :clicked)
-    signal_connect(button_save, :clicked) do widget save_to_file(widget, out_satellite_points) end
+    signal_connect(button_save, :clicked) do widget save_to_file(widget) end
     signal_connect(button_left, :clicked) do widget on_button_move(widget, "left") end
     signal_connect(button_up, :clicked) do widget on_button_move(widget, "up") end
     signal_connect(button_down, :clicked) do widget on_button_move(widget, "down") end
